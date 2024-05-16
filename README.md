@@ -48,6 +48,10 @@
       - [理想的な単体テスト](#理想的な単体テスト)
       - [取るに足らないテスト](#取るに足らないテスト)
     - [ブラックボックステスト](#ブラックボックステスト)
+  - [モックの利用とテストの壊れやすさ](#モックの利用とテストの壊れやすさ)
+    - [テストダブルの種類](#テストダブルの種類)
+      - [モック](#モック)
+      - [スタブ](#スタブ)
 
 ## テストの種類
 
@@ -568,3 +572,80 @@ $テストケースの価値 = 退行への保護 \times リファクタリン�
 `境界値分析`を用いたテストケースでは、`境界値`となる17才と18才に加えて16才と19才のテストケースを実装しています。
 これは、誤って大人を判定する式が`year == 18`と実装されていた場合に、19才を判断するテストが失敗するようにするためです。
 `境界値分析`では`境界値`だけでなく`境界値`よりも1単位小さいまたは大きい値をテストケースに含めるようにしてください。
+
+## モックの利用とテストの壊れやすさ
+
+### テストダブルの種類
+
+テストダブルは、次の2つの種類に分類できます。
+
+- `モック`
+- `スタブ`
+
+![モックとスタブ](./images/mock-and-stub.png)
+
+#### モック
+
+`モック`は、SUTからSUTが依存するオブジェクトに向かうコミュニケーションを模倣するオブジェクトです。
+`モック`は、メソッドの呼び出し回数や引数を記録して後で検証できます。
+`モック`は、テストフレームワークを利用して作成することがほとんどで、pythonでは`unittest.mock.Mock`または`unittest.mock.MagicMock`クラスを利用できます。
+`unittest.mock.MagicMock`クラスは、`unittest.mock.Mock`クラスのすべての機能と、`__getitem__`などの`マジックメソッド`を自動的にモックします。
+
+単体テストでは、個々の機能を分離して1つの振る舞いをテストします。
+
+例えば、実際にデータベースにアクセスしてユーザーの数を取得する`retrieve_number_of_users`関数があったとします。
+そして、`UserQuery`クラスの`number_of_users`メソッドは、そのメソッドの内部で`retrieve_number_of_users`関数を呼び出しているとします。
+
+`UserQuery`クラスの`number_of_users`メソッドをテストする場合、内部で呼び出す`retrieve_number_of_users`関数が色々な値を返すとテストがしにくくなります。
+
+よって、`UserQuery`クラスの`number_of_users`メソッドが呼び出す`retrieve_number_of_users`関数を`モック`して、あらかじめ予期したデータを返却するようにします。
+
+`retrieve_number_of_users`関数、`UserQuery`クラスとそのテストクラスは次に実装してあります。
+
+- `retrieve_number_of_users`関数: `magic_mock_example/__init__.py`
+- `UserQuery`クラス: `magic_mock_example/user_query.py`
+- `UserQuery`クラスのテストクラス: `tests/magic_mock_example/test_user_query.py`
+
+ここで、`tests/magic_mock_example/test_user_query.py`では、`magic_mock_example.user_query`の名前空間にインポートした、`retrieve_number_of_users`という名前で参照できる関数をモックしていることに注意してください
+(`magic_mock_example`名前空間に存在する実際の`retrieve_number_of_users`関数をモックしているわけではありません)。
+
+```python
+import unittest
+from unittest.mock import MagicMock
+
+import magic_mock_example.user_query  # <- ここ
+from magic_mock_example.user_query import UserQuery
+
+
+class UserQueryTest(unittest.TestCase):
+    """ユーザークエリテストクラス"""
+
+    def test_number_of_users(self) -> None:
+        # snip
+
+        magic_mock_example.user_query.retrieve_number_of_users = MagicMock( # <-- ここ
+            return_value=100
+        )
+
+        # snip
+```
+
+#### スタブ
+
+`スタブ`は、SUTが依存するオブジェクトからSUTに向かうコミュニケーションを模倣するオブジェクトです。
+`スタブ`は、SUTに対して固定の応答を返すため、SUTの振る舞いをテストしやすくなります。
+`スタブ`は、開発者が実装する必要があります。
+
+```python
+class ApiStub:
+    def fetch(self) -> Dict:
+        return {"data": "sample data"}
+
+
+class FooTest(unittest.TestCase):
+    def test_fetch_data(self) -> None:
+        api = ApiStub()
+        foo = Foo(api)
+        result = foo.fetch_data()
+        self.assertEqual(result, {"data": "sample data"})
+```
