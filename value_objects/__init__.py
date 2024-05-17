@@ -7,8 +7,11 @@ from typing import Any
 class Address:
     """住所"""
 
+    # 都道府県
     prefecture: str
+    # 市区町村
     city: str
+    # 市区町村以下の住所
     address: str
 
     def __eq__(self, other: Any) -> bool:
@@ -51,6 +54,9 @@ class Address:
 class Color(Enum):
     """色"""
 
+    # 赤色
     RED = 1
+    # 緑色
     GREEN = 2
+    # 青色
     BLUE = 3
