@@ -2,18 +2,18 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from .visitor_manager import VisitorManager
+from .visitor_record_service import VisitorRecordService
 
 # 訪問者記録ファイルディレクトリ
-VLS_DIR = "resources/vls1"
+VLS_DIR = "resources/vls3"
 # 訪問者記録ファイルに記録可能な訪問者数
 VISITORS_PER_FILE = 5
 
 
 def main():
     """エントリポイント"""
-    # 訪問者管理
-    manager = VisitorManager(VISITORS_PER_FILE, VLS_DIR)
+    # 訪問者記録サービス
+    service = VisitorRecordService(VISITORS_PER_FILE, VLS_DIR)
     # 訪問者
     visitors = [
         "家康",
@@ -34,7 +34,7 @@ def main():
     ]
 
     for visitor in visitors:
-        manager.add_record(visitor, datetime.now(tz=ZoneInfo("Asia/Tokyo")))
+        service.record_visitor(visitor, datetime.now(tz=ZoneInfo("Asia/Tokyo")))
         time.sleep(1)
 
 
