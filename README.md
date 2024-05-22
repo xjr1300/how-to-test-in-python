@@ -1,8 +1,8 @@
 # テストの考え方と実装方法 in Python
 
-[単体テストの考え方／使い方](https://book.mynavi.jp/ec/products/detail/id=134252)
+[単体テストの考え方／使い方](https://book.mynavi.jp/ec/products/detail/id=136552)
 
-![書籍表紙](https://book.mynavi.jp/files/topics/134252_ext_06_0.jpg?v=1670578534)
+![書籍表紙](https://book.mynavi.jp/files/topics/136552_ext_06_0.jpg?v=1670578534)
 
 本文書では、**古典学派 (デトロイト学派) の解釈を採用**しています。
 また、本文書では、書籍を参考に個人的な意見を含めているため、書籍の内容と異なる場合があります。
@@ -108,6 +108,14 @@
         - [テストメソッド](#テストメソッド)
         - [テストの検証フェーズ](#テストの検証フェーズ)
         - [unittest.TestCaseの実行順序](#unittesttestcaseの実行順序)
+      - [unittest.mock.MagicMockの説明](#unittestmockmagicmockの説明)
+        - [属性値を与える](#属性値を与える)
+        - [戻り値を与える](#戻り値を与える)
+        - [例外をスローする](#例外をスローする)
+        - [指定した関数の戻り値を返す](#指定した関数の戻り値を返す)
+        - [モックの呼び出しを確認](#モックの呼び出しを確認)
+        - [パッチの説明](#パッチの説明)
+        - [unittest.mock.pathの使用方法](#unittestmockpathの使用方法)
 
 ## テストの種類
 
@@ -1506,4 +1514,290 @@ setUp was called!
 [test case] test_foo was called!
 tearDown was called!
 tearDownClass was called!
+```
+
+#### unittest.mock.MagicMockの説明
+
+`unittest.mock.MagicMock`クラスは、`unittest.mock.Mock`クラスにほとんどの`マジックメソッド`のデフォルトの実装を追加したクラスです。
+`MagicMock`は、モックという名前の通り、クラス、メソッドまたは関数などの代理をして、テストを効率的に実装または実行するために使用されます。
+
+`MagicMock`には次の特徴があります。
+
+- どんな振る舞いも表現できます。
+- 任意の名前空間にモックをねじ込む`パッチ`機能を提供します。
+- ねじ込んだモックがどのように使用されたかを記録する`キャプチャ`機能を提供します。
+  - どのようなメソッドが呼び出されたか
+  - 何回呼び出されたか
+  - 呼び出されたときの引数は何か
+
+##### 属性値を与える
+
+`MagicMock`インスタンスに属性値を与える場合、インスタンス作成時にキーワード引数で属性値を与えます。
+また、インスタンスを作成した後で属性値を与えることもできます。
+さらに、存在しない属性にアクセスしたときも`AttributeError`例外が発生せず、新しい`MagicMock`がその属性に追加されて返されます。
+
+```python
+>>> from unittest.mock import MagicMock
+>>> mock1 = MagicMock(a=1, b=2, c="hello")
+>>> mock2 = MagicMock(**{"a": 1, "b":2, "c": "hello"})
+>>> print(f"{mock1.a}, {mock1.b}, {mock1.c}")
+1, 2, hello
+>>> print(f"{mock2.a}, {mock2.b}, {mock2.c}")
+1, 2, hello
+>>>
+>>> mock1.d = "python"
+>>> mock1.d
+'python'
+>>>
+>>> mock1.e
+<MagicMock name='mock.e' id='4376629168'>
+>>> mock1.e
+<MagicMock name='mock.e' id='4376629168'>
+>>> mock1.func()
+<MagicMock name='mock.func()' id='4384973808'>
+>>> mock1.func(1, 2, 3)
+<MagicMock name='mock.func()' id='4384973808'>
+>>>
+>>> mock1.__eq__
+<MagicMock name='mock.__eq__' id='4385663280'>
+>>> mock1.__eq__(mock1)
+True
+>>> mock1.__eq__(mock2)
+NotImplemented
+>>>
+>>> mock1__a__
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+NameError: name 'mock1__a__' is not defined
+>>>
+>>> dir(mock1)
+['__eq__', 'a', 'assert_any_call', 'assert_called', 'assert_called_once', 'assert_called_once_with', 'assert_called_with', 'assert_has_calls', 'assert_not_called', 'attach_mock', 'b', 'c', 'call_args', 'call_args_list', 'call_count', 'called', 'configure_mock', 'd', 'func', 'method_calls', 'mock_add_spec', 'mock_calls', 'reset_mock', 'return_value', 'side_effect']
+>>>
+>>> mock3 = MagicMock(**{"a.b.c.d": "spam"})  # 辞書のキーにドットを含めると属性がネスト
+>>> mock3.a.b.c.d
+'spam'
+>>> mock3.configure_mock(**{"x.y.z": "grok"})  # configure_mockメソッドでネストした属性を設定
+>>> mock3.x.y.z
+'grok'
+```
+
+##### 戻り値を与える
+
+`MagicMock`は呼び出し可能オブジェクトであり、呼び出されたときに返す値を指定することができます。
+モックを呼び出したときに指定した値を返すようにする場合、`return_value`属性にその値を設定します。
+
+```python
+>>> from unittest.mock import MagicMock
+>>> mock4 = MagicMock(return_value=65)
+>>> mock4()
+65
+>>> mock4(1, 2, 3)
+65
+>>> mock4(a=1, b=2, c=3)
+65
+>>>
+>>> mock5 = MagicMock()
+>>> mock5.return_value = 65 # インスタンスを作成後に戻り値を指定することができます。
+>>> mock5()
+65
+```
+
+モックを呼び出すたびに、異なる値を返すようにする場合は、`side_effect`属性にイテラブルな値を設定します。
+モックは`side_effect`属性に設定したイテラブルな値を順に返します。
+
+```python
+>>> mock6 = MagicMock(side_effect=range(3))
+>>> mock6()
+0
+>>> mock6()
+1
+>>> mock6()
+2
+>>> mock6()
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "/Users/xjr1300/.pyenv/versions/3.12.0/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xjr1300/.pyenv/versions/3.12.0/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xjr1300/.pyenv/versions/3.12.0/lib/python3.12/unittest/mock.py", line 1195, in _execute_mock_call
+    result = next(effect)
+             ^^^^^^^^^^^^
+StopIteration
+```
+
+##### 例外をスローする
+
+モックが呼び出されたときに例外をスローさせる場合、`side_effect`属性に例外を設定します。
+
+```python
+>>> mock7 = MagicMock(side_effect=ValueError("it is an invalid value"))
+>>> mock7()
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "/Users/xjr1300/.pyenv/versions/3.12.0/lib/python3.12/unittest/mock.py", line 1134, in __call__
+    return self._mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xjr1300/.pyenv/versions/3.12.0/lib/python3.12/unittest/mock.py", line 1138, in _mock_call
+    return self._execute_mock_call(*args, **kwargs)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/xjr1300/.pyenv/versions/3.12.0/lib/python3.12/unittest/mock.py", line 1193, in _execute_mock_call
+    raise effect
+ValueError: it is an invalid value
+```
+
+##### 指定した関数の戻り値を返す
+
+モックがある関数の戻り値を返すようにする場合、`side_effect`にその関数を設定します。
+
+```python
+>>> def return_65() -> int:
+...     return 65
+...
+>>> mock8 = MagicMock(side_effect=return_65)
+>>> mock8()
+65
+```
+
+##### モックの呼び出しを確認
+
+`MagicMock`は、呼び出されたときの引数を記録するため、後からモックの呼び出しを確認できます。
+
+```python
+>>> mock9 = MagicMock(return_value=65)
+>>> mock9()
+65
+>>> mock9(1, 2, 3)
+65
+>>> mock9(a=1, b=2, c=3)
+65
+>>> mock9(1, 2, 3, **{"a": "spam", "b": "grok"})
+65
+>>> mock9.called          # モックが呼び出されたか確認
+True
+>>> mock9.call_count      # モックの呼び出し回数を確認
+4
+>>> mock9.call_args_list  # モックの呼び出し時の引数を確認
+[call(),
+ call(1, 2, 3),
+ call(a=1, b=2, c=3),
+ call(1, 2, 3, a='spam', b='grok')]
+>>> mock9.call_args       # 最後の呼び出しを確認
+call(1, 2, 3, a='spam', b='grok')
+>>>
+>>> mock9.reset_mock()    # モックの呼び出しをリセット
+>>> mock9.called
+False
+>>> mock9.call_count
+0
+>>> mock9()
+65
+>>> mock9("a", "b", "c")
+>>> mock9.assert_called_with("a", "b", "c") # 同じ引数でモックを呼び出したか検証
+>>> mock9.assert_called_with("a", "b", 1)
+Traceback (most recent call last):
+  File "<stdin>", line 1, in <module>
+  File "/Users/xjr1300/.pyenv/versions/3.12.0/lib/python3.12/unittest/mock.py", line 944, in assert_called_with
+    raise AssertionError(_error_message()) from cause
+AssertionError: expected call not found.
+Expected: mock('a', 'b', 1)
+Actual: mock('a', 'b', 'c')
+```
+
+`MagicMock`には、モックが1回だけ指定された引数で呼び出されたかを検証する`assert_called_once_with`メソッドなど、他にもモックの呼び出しを検証するメソッドがあります。
+
+##### パッチの説明
+
+pythonは、（おそらく）ほとんどのモノを置き換えることができます。
+
+```python
+>>> import os
+>>> def pretender(*args, **kwargs) -> str:
+...     return "/spam/grok/egg"
+...
+>>> os.path.join("xyz", "spam.txt")
+'xyz/spam.txt'
+>>> waste_box = os.path.join
+>>> waste_box("xyz", "spam.txt")
+'xyz/spam.txt'
+>>> os.path.join = pretender
+>>> os.path.join("xyz", "spam.txt")
+'/spam/grok/egg'
+>>> os.path.join = waste_box
+>>> os.path.join("xyz", "spam.txt")
+'xyz/spam.txt'
+```
+
+`パッチ`は上記と同様の動作をします。
+つまり、パッチは、`os.path.join`をモックに置き換え、テストの実行が置き換えを適用する範囲を超えると、モックの適用を解除します。
+これにより、モックの適用を自動的に解除されるため、後続のテストの実行に影響を与えないようにできます。
+
+##### unittest.mock.pathの使用方法
+
+`unittest.mock.patch`は、モジュールパスに一致するモノをモックに置き換えます。
+`patch`は、コンテキストマネージャまたはデコレータで使用します。
+
+`patch`へのキーワード引数は、モックを作成するときのコンストラクタに渡されます。
+モックが引き受けないキーワード引数は、モックの属性として設定されます。
+
+コンテキストマネージャで使用した場合、`as`で指定した変数にパッチされたモックが代入されます。
+デコレータで使用した場合、修飾した関数の引数でパッチされたモックを受け取ることができます。
+
+```python
+# patch_sample/__main__.py
+# ruff: noqa
+import os
+import unittest
+from unittest.mock import patch, MagicMock
+
+
+class OsPathJoinTest1(unittest.TestCase):
+    def test_patch_context_manager(self) -> None:
+        """patchコンテキストマネージャーを使用する例"""
+        with patch("os.path.join") as mock:
+            # モックが返す値を設定
+            mock.return_value = "foo/bar/spam.txt"
+            # モックされたos.path.join関数の実行
+            path1 = os.path.join("1", "2", "grok.txt")
+            # モックが返した値を県s表
+            self.assertEqual("foo/bar/spam.txt", path1)
+        # モックが解除されている
+        path2 = os.path.join("1", "2", "grok.txt")
+        self.assertEqual("1/2/grok.txt", path2)
+
+    @patch("os.path.join")
+    def test_patch_decorator1(self, mock: MagicMock) -> None:
+        # モックが返す値を設定
+        mock.return_value = "foo/bar/spam.txt"
+        # モックされたos.path.join関数の実行
+        path1 = os.path.join("1", "2", "grok.txt")
+        # モックが返した値を県s表
+        self.assertEqual("foo/bar/spam.txt", path1)
+
+    @patch("os.path.join", return_value="a", custom_attribute="hello")
+    def test_patch_decorator2(self, mock: MagicMock) -> None:
+        """patchデコレーターの引数にモックが受け取るキーワード引数とモックの属性を指定"""
+        self.assertEqual("a", os.path.join(""))
+        self.assertEqual("hello", mock.custom_attribute)
+
+    @patch("os.path.join", side_effect=["a", "b"])
+    def test_patch_decorator3(self, _: MagicMock) -> None:
+        """モックを呼び出すたびに異なる値を返すようにpatchデコレーターの引数を設定"""
+        self.assertEqual("a", os.path.join(""))
+        self.assertEqual("b", os.path.join(""))
+
+
+if __name__ == "__main__":
+    unittest.main()
+```
+
+```sh
+% poetry run python -m patch_sample
+....
+----------------------------------------------------------------------
+Ran 4 tests in 0.001s
+
+OK
 ```
