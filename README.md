@@ -1899,3 +1899,24 @@ class PatchDictTest(unittest.TestCase):
 11. 上記リファクタリング後、テストがパスするか確認してください。
 12. 箇条書きで入力したテストケースについて、6から11を繰り返してください。
 13. docstringの「TODO: 単体テストを実装」を削除してください。
+
+テストは次のとおり実行できます。
+
+```sh
+# testsディレクトリに実装したすべてのテストを実行
+poetry run python -m unittest
+
+# 指定したファイルに実装したテストをすべて実行
+# 次の場合、tests/drugstore/domain/models/test_items.pyに実装したテストが対象
+poetry run python -m unittest tests.drugstore.domain.models.test_items
+
+# 指定したテストクラスに実装したテストをすべて実行
+# 次の場合、上記ファイルのItemTestクラスに実装したすべてのテストが対象
+poetry run python -m unittest tests.drugstore.domain.models.test_items.ItemTest
+
+# 指定したテストケースのみ実行
+# 次の場合、上記ItemTestクラスに実装した次のメソッドが対象
+#   test_instantiate_item_by_valid_attributes
+poetry run python -m unittest tests.drugstore.domain.models.test_items.ItemTest.test_instantiate_
+item_by_valid_attributes
+```
