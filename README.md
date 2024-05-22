@@ -114,8 +114,10 @@
         - [例外をスローする](#例外をスローする)
         - [指定した関数の戻り値を返す](#指定した関数の戻り値を返す)
         - [モックの呼び出しを確認](#モックの呼び出しを確認)
-        - [パッチの説明](#パッチの説明)
+      - [パッチの説明](#パッチの説明)
         - [unittest.mock.pathの使用方法](#unittestmockpathの使用方法)
+        - [unittest.mock.patch.objectの使用方法](#unittestmockpatchobjectの使用方法)
+        - [unittest.mock.patch.dictの使用方法](#unittestmockpatchdictの使用方法)
 
 ## テストの種類
 
@@ -1423,22 +1425,7 @@ class FooTest(unittest.TestCase):
 
 ##### テストの検証フェーズ
 
-テストの検証フェーズでは、`TestCase`の次のメソッドを使用して、予期した結果とテスト対象コードが実行した結果を検証します。
-
-| メソッド                    | 検証内容                                     |
-| --------------------------- | -------------------------------------------- |
-| `assertEqual(a, b)`         | `a`と`b`が等しいことを検証                   |
-| `assertNotEqual(a, b)`      | `a`と`b`が等しくないことを検証               |
-| `assertTrue(x)`             | `x`が`True`であることを検証                  |
-| `assertFalse(x)`            | `x`が`False`であることを検証                 |
-| `assertIs(a, b)`            | `a`と`b`が同じオブジェクトであることを検証   |
-| `assertIsNot(a, b)`         | `a`と`b`が異なるオブジェクトであることを検証 |
-| `assertIsNone(x)`           | `x`が`None`であることを検証                  |
-| `assertIsNotNone(x)`        | `x`が`None`でないことを検証                  |
-| `assertIn(a, b)`            | `a`が`b`に含まれていることを検証             |
-| `assertNotIn(a, b)`         | `a`が`b`に含まれていないことを検証           |
-| `assertIsInstance(a, b)`    | `a`が`b`のインスタンスであることを検証       |
-| `assertNotIsInstance(a, b)` | `a`が`b`のインスタンスでないことを検証       |
+テストの検証フェーズでは、`TestCase`の`assert*`メソッドを使用して、予期した結果とテスト対象コードが実行した結果を検証します。
 
 また、例外が発生することを検証するためには、`assertRaises`コンテキストマネージャを使用します。
 次の例では、`foo`関数が`ValueError`をスローすることを確認しており、`ValueError`がスローされない場合は、テストが失敗します。
@@ -1708,7 +1695,7 @@ Actual: mock('a', 'b', 'c')
 
 `MagicMock`には、モックが1回だけ指定された引数で呼び出されたかを検証する`assert_called_once_with`メソッドなど、他にもモックの呼び出しを検証するメソッドがあります。
 
-##### パッチの説明
+#### パッチの説明
 
 pythonは、（おそらく）ほとんどのモノを置き換えることができます。
 
@@ -1753,7 +1740,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 
-class OsPathJoinTest1(unittest.TestCase):
+class PatchTest(unittest.TestCase):
     def test_patch_context_manager(self) -> None:
         """patchコンテキストマネージャーを使用する例"""
         with patch("os.path.join") as mock:
@@ -1800,4 +1787,55 @@ if __name__ == "__main__":
 Ran 4 tests in 0.001s
 
 OK
+```
+
+##### unittest.mock.patch.objectの使用方法
+
+`unittest.mock.patch.object`は、オブジェクトの属性をモックに置き換えます。
+
+```python
+# patch_sample/__main__.py
+class Foo:
+    def __init__(self) -> None:
+        self.x = "Hello, world!"
+        self.y = 65
+
+    def get_y(self) -> int:
+        return self.y
+
+
+class PatchObjectTest(unittest.TestCase):
+    def test_patch_object1(self) -> None:
+        foo = Foo()
+        # fooのxの属性をモック
+        with patch.object(foo, "x", "Hello, python!"):
+            self.assertEqual("Hello, python!", foo.x)
+
+    # Fooのget_yメソッドをモック
+    @patch.object(Foo, "get_y", return_value=32)
+    def test_patch_object2(self, mock: MagicMock) -> None:
+        foo = Foo()
+        self.assertEqual(32, foo.get_y())
+```
+
+##### unittest.mock.patch.dictの使用方法
+
+`unittest.mock.patch.dict`は、辞書または辞書のようなオブジェクトをパッチして、モックに置き換えます。
+
+```python
+@patch.dict("os.environ", {"custom_key": "custom_value"})
+class PatchDictTest(unittest.TestCase):
+    def test_patch_dict2(self) -> None:
+        self.assertTrue("custom_key" in os.environ)
+        self.assertEqual("custom_value", os.environ["custom_key"])
+
+    def test_patch_dict1(self) -> None:
+        d = {}
+        with patch.dict(d, {"a": 65, "b": "Hello, world!"}):
+            self.assertTrue("a" in d.keys())
+            self.assertEqual(65, d["a"])
+            self.assertTrue("b" in d.keys())
+            self.assertEqual("Hello, world!", d["b"])
+        self.assertFalse("a" in d.keys())
+        self.assertFalse("b" in d.keys())
 ```

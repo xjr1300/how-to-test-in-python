@@ -4,7 +4,7 @@ import unittest
 from unittest.mock import patch, MagicMock
 
 
-class OsPathJoinTest1(unittest.TestCase):
+class PatchTest(unittest.TestCase):
     def test_patch_context_manager(self) -> None:
         """patchコンテキストマネージャーを使用する例"""
         with patch("os.path.join") as mock:
@@ -38,6 +38,46 @@ class OsPathJoinTest1(unittest.TestCase):
         """モックを呼び出すたびに異なる値を返すようにpatchデコレーターの引数を設定"""
         self.assertEqual("a", os.path.join(""))
         self.assertEqual("b", os.path.join(""))
+
+
+class Foo:
+    def __init__(self) -> None:
+        self.x = "Hello, world!"
+        self.y = 65
+
+    def get_y(self) -> int:
+        return self.y
+
+
+class PatchObjectTest(unittest.TestCase):
+    def test_patch_object1(self) -> None:
+        foo = Foo()
+        # fooのxの属性をモック
+        with patch.object(foo, "x", "Hello, python!"):
+            self.assertEqual("Hello, python!", foo.x)
+
+    # Fooのget_yメソッドをモック
+    @patch.object(Foo, "get_y", return_value=32)
+    def test_patch_object2(self, mock: MagicMock) -> None:
+        foo = Foo()
+        self.assertEqual(32, foo.get_y())
+
+
+@patch.dict("os.environ", {"custom_key": "custom_value"})
+class PatchDictTest(unittest.TestCase):
+    def test_patch_dict1(self) -> None:
+        self.assertTrue("custom_key" in os.environ)
+        self.assertEqual("custom_value", os.environ["custom_key"])
+
+    def test_patch_dict2(self) -> None:
+        d = {}
+        with patch.dict(d, {"a": 65, "b": "Hello, world!"}):
+            self.assertTrue("a" in d.keys())
+            self.assertEqual(65, d["a"])
+            self.assertTrue("b" in d.keys())
+            self.assertEqual("Hello, world!", d["b"])
+        self.assertFalse("a" in d.keys())
+        self.assertFalse("b" in d.keys())
 
 
 if __name__ == "__main__":
