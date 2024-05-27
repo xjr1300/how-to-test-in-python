@@ -14,8 +14,6 @@ class SaleDetail:
 
     # 商品
     item: Item
-    # 単価
-    unit_price: Decimal
     # 数量
     quantities: int
     # 小計
