@@ -26,10 +26,10 @@ class Sale:
 
     # 売上ID
     id: uuid.UUID
+    # 顧客
+    customer: Optional[Customer]
     # 売上日時
     sold_at: datetime
-    # 顧客ID
-    customer: Optional[Customer]
     # 販売明細
     sale_details: List[SaleDetail]
     # 小計
@@ -39,8 +39,8 @@ class Sale:
     # 割引額
     discount_amount: Decimal
     # 消費税率
-    consumption_rate: Decimal
+    consumption_tax_rate: Decimal
     # 消費税額
-    consumption_amount: Decimal
+    consumption_tax_amount: Decimal
     # 合計額
     total: Decimal
