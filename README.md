@@ -2,7 +2,7 @@
 
 [単体テストの考え方／使い方](https://book.mynavi.jp/ec/products/detail/id=136552)
 
-![書籍表紙](https://book.mynavi.jp/files/topics/136552_ext_06_0.jpg?v=1670578534)
+![書籍表紙](./images/unit-testing-principles-practices-patterns.png)
 
 本文書では、**古典学派 (デトロイト学派) の解釈を採用**しています。
 また、本文書では、書籍を参考に個人的な意見を含めているため、書籍の内容と異なる場合があります。
