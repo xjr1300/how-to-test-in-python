@@ -141,6 +141,8 @@
     - [ユースケースの実装とその単体テストの実装](#ユースケースの実装とその単体テストの実装)
       - [リポジトリとリポジトリマネージャーの定義](#リポジトリとリポジトリマネージャーの定義)
       - [消費税ユースケースの実装](#消費税ユースケースの実装)
+  - [統合テストの実装演習](#統合テストの実装演習)
+    - [具象リポジトリの実装](#具象リポジトリの実装)
 
 ## テストの種類
 
@@ -1881,14 +1883,13 @@ class PatchDictTest(unittest.TestCase):
 
 ドラッグストアのドメインルール（ビジネスルール）は次のとおりです。
 
-- ドラッグストアの売上を顧客、会員区分、売上、売上明細、商品、消費税で管理します。
+- ドラッグストアの売上を商品、会員区分、顧客、消費税、売上、売上明細で管理します。
+  - 商品の属性は、商品ID、商品名、単価です。
+  - 会員区分の属性は、会員区分コード、会員区分名です。
   - 顧客の属性は、顧客ID、顧客名、会員区分コードです。
-  - 会員区分の属性は、会員区分、会員区分名です。
+  - 消費税の属性は、消費税ID、起点日時、終点日時、税率です。
   - 売上の属性は、売上ID、売上日時、顧客、小計、割引率、割引額、課税対象額、消費税率、消費税額、合計額です。
   - 売上明細の属性は、売上ID、商品、数量、小計です。
-    売上明細は、売上で管理されるため、売上IDを持っていません。
-  - 商品の属性は、商品ID、商品名、単価です。
-  - 消費税の属性は、消費税ID、起点日時、終点日時、税率です。
 - 日時はすべて日本時間で管理します。
 - 商品の名前の先頭及び末尾に空白文字文字がある場合は削除します。
 - 商品の名前は1文字以上です。
@@ -2381,3 +2382,100 @@ def is_same_consumption_tax_conditions(a: ConsumptionTax, b: ConsumptionTax) -> 
         return False
     return True if a.rate == b.rate else False
 ```
+
+## 統合テストの実装演習
+
+商品の売上をSQLiteデータベースに保存するユースケースの統合テストを実装します。
+
+統合テストでは、次の`IntegrationTestCase`派生クラスに実装します。
+`IntegrationTestCase`クラスは、テストケースを実行するたびに、テスト用データベースを準備して、テストケースが終了したらテスト用データベースを削除します。
+これにより、`IntegrationTestCase`派生クラスに実装されたテストケースは、発生した副作用を他のテストケースに与えないようにします。
+
+```python
+# tests/integration_tests/__init__.py
+import os
+import sqlite3
+import sys
+import unittest
+import uuid
+from glob import glob
+from typing import Tuple
+
+DATABASE_DIR = os.path.join(os.getcwd(), "tests", "integration_tests", "dbs")
+
+SQL_DIR = os.path.join(os.getcwd(), "sql")
+
+
+def remove_test_dbs() -> None:
+    """テスト用データベースをすべて削除する。"""
+    path = os.path.join(DATABASE_DIR, "test_*.db3")
+    db_paths = glob(path, recursive=False)
+    for db_path in db_paths:
+        try:
+            os.remove(db_path)
+        except Exception:
+            print(f"can't remove {db_path}", file=sys.stderr)
+
+
+def create_test_db() -> Tuple[sqlite3.Connection, str]:
+    """テスト用データベースを作成する。
+
+    Returns:
+        Tuple[sqlite3.Connection, str]: データベース接続とデータベースのファイルパスを
+            格納したタプル
+    """
+    # テーブル作成SQL文を取得
+    sql_path = os.path.join(SQL_DIR, "create_tables.sql")
+    with open(sql_path, "rt") as sql_file:
+        sql_statements = sql_file.read()
+    # データベースを保存するディレクトリを作成
+    if not os.path.isdir(DATABASE_DIR):
+        os.makedirs(DATABASE_DIR)
+    # データベースを作成
+    db_name = f"test_{uuid.uuid4()}.db3"
+    db_path = os.path.join(DATABASE_DIR, db_name)
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.executescript(sql_statements)
+    conn.commit()
+    return conn, db_path
+
+
+class IntegrationTestCase(unittest.TestCase):
+    """統合テストクラス
+
+    sqlite3はネストしたトランザクションをサポートしていない。
+    よって、setUpClassでSAVEPOINTを作成して、tearDownでSAVEPOINTにロールバックする
+    ことで、それぞれテストケースを実行する前の状態にデータベースを戻したいが、sqlite3は
+    COMMITすると未処理のトランザクションをコミットして、トランザクションスタックを空にする。
+    つまり、作成したSAVEPOINTがすべて削除され、コミット後はSAVEPOINTまでロールバックできない。
+    よって、setUpでデータベースを作成して、tearDownでデータベースを削除するように実装した。
+    """
+
+    # データベース接続
+    conn: sqlite3.Connection
+    # データベースのパス
+    db_path: str = ""
+
+    def setUp(self) -> None:  # noqa: D102
+        result = super().setUp()
+        # テスト用データベースをすべて削除
+        remove_test_dbs()
+        # テースト用データベースを作成
+        conn, db_path = create_test_db()
+        # メンバ変数を設定
+        self.conn = conn
+        self.db_path = db_path
+        return result
+
+    def tearDown(self) -> None:  # noqa: D102
+        # テスト用データベースと切断
+        self.conn.close()
+        # テスト用データベースを削除
+        try:
+            os.remove(self.db_path)
+        except Exception:
+            print(f"can't remove {self.db_path}", file=sys.stderr)
+```
+
+### 具象リポジトリの実装
