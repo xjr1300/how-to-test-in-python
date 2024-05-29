@@ -118,7 +118,7 @@
         - [unittest.mock.pathの使用方法](#unittestmockpathの使用方法)
         - [unittest.mock.patch.objectの使用方法](#unittestmockpatchobjectの使用方法)
         - [unittest.mock.patch.dictの使用方法](#unittestmockpatchdictの使用方法)
-  - [テストの実装練習](#テストの実装練習)
+  - [単体テストの実装演習](#単体テストの実装演習)
     - [Todo Tree拡張機能のインストール](#todo-tree拡張機能のインストール)
     - [テストの実装を連取するサンプルプロジェクトの説明](#テストの実装を連取するサンプルプロジェクトの説明)
     - [商品クラスと単体テストの実装](#商品クラスと単体テストの実装)
@@ -138,7 +138,9 @@
     - [売上と単体テストの実装](#売上と単体テストの実装)
       - [イニシャライザ](#イニシャライザ)
       - [売上明細の追加と削除](#売上明細の追加と削除)
-    - [リポジトリの実装](#リポジトリの実装)
+    - [ユースケースの実装とその単体テストの実装](#ユースケースの実装とその単体テストの実装)
+      - [リポジトリとリポジトリマネージャーの定義](#リポジトリとリポジトリマネージャーの定義)
+      - [消費税ユースケースの実装](#消費税ユースケースの実装)
 
 ## テストの種類
 
@@ -1866,7 +1868,7 @@ class PatchDictTest(unittest.TestCase):
         self.assertFalse("b" in d.keys())
 ```
 
-## テストの実装練習
+## 単体テストの実装演習
 
 ### Todo Tree拡張機能のインストール
 
@@ -2131,15 +2133,31 @@ item_by_valid_attributes
 
 なお、売上明細を追加または削除するたびに、小計、割引率、割引額、消費税額、合計額を再計算します。
 
-### リポジトリの実装
+### ユースケースの実装とその単体テストの実装
+
+管理下にあるプロセス外依存をスタブやモックに置き換えて単体テストをする利点はほとんどなく、**壊れやすい単体テスト**を作成することになると考えられます。
+
+> 第三者のメール配信サービスなど、管理下にないプロセス外依存は単体テストを実装しないか、統合テストでスタブやモックに置き換えます。
+
+単体テストを実装する演習をするために、ここでは、次のユースケースを実装してその単体テストを実装します。
+
+- 売上に適用する消費税の税率を取得する
+- 消費税を追加して、消費税のリストを入れ替える
+
+単体テストでは、リポジトリから消費税のリストを返すことを模倣するスタブと、リポジトリが管理する消費税のリストを入れ替えることを模倣するモックを使用した単体テストを実装します。
+ただし、本来、これらのテストは、管理下にあるプロセス外依存を直接利用した統合テストを実装するべきであることに留意してください。
+
+#### リポジトリとリポジトリマネージャーの定義
 
 ドメイン駆動設計(DDD)において、`リポジトリ`はプロセス外依存が管理するデータを操作する責務を担います。
 
-ここでは、戦術的DDDに従って、PostgreSQLなど具体的なプロセス外依存を扱うのではなく、プロセス外依存とドメインが疎結合となるように、リポジトリを定義します。
+ここでは、戦術的DDDに従って、PostgreSQLなど具体的なプロセス外依存を扱うのではなく、プロセス外依存とドメインが疎結合となるように、リポジトリを抽象基底クラスとして定義します。
+
+> pythonでは`MagicMock`を使用するため、リポジトリを定義する必要はありません。
 
 戦術的DDDにおいて、顧客、商品、消費税、売上は`エンティティ`で`集約ルート`となります。
 
-売上明細は`値オブジェクト`であるためリポジトリを定義しません。
+また、売上明細は`値オブジェクト`であるためリポジトリを定義しません。
 **売上と売上明細のドメインルールを維持**するために、売上明細が属する集約ルートである売上を経由しないと、売上が管理する売上明細にアクセスできないようにします。
 
 作成するリポジトリとリポジトリが実装するメソッドを次に示します。
@@ -2165,3 +2183,201 @@ item_by_valid_attributes
   - 売上IDで指定される売上を返す
   - 売上を登録する
   - 売上を削除する
+
+リポジトリは、`drugstore/domain/repositories`ディレクトリに配置してあります。
+
+- `CustomerRepository`: `customers.py`
+- `ItemRepository`: `items.py`
+- `ConsumptionTaxRepository`: `consumption_taxes.py`
+- `SaleRepository`: `sales.py`
+- `RepositoryManager`: `__init__.py`
+
+`RepositoryManager`クラスは抽象規定クラスで、後で実際にプロセス外依存を取り扱う具象クラスを実装します。
+
+#### 消費税ユースケースの実装
+
+消費税ユースケースを次のとおり実装します。
+パスにあるそれそれのディレクトリに、pythonがモジュールを検索する対象となるように、空の`__init__.py`ファイルを配置してください。
+
+```python
+# drugstore/usecases/consumption_tax_usecase.py
+from datetime import datetime
+from decimal import Decimal
+
+from drugstore.domain.models.consumption_taxes import ConsumptionTax
+from drugstore.domain.repositories import RepositoryManager
+from drugstore.utils.consumption_tax_manager import ConsumptionTaxManager
+
+
+def retrieve_applicable_consumption_tax_rage(
+    repo_manager: RepositoryManager, dt: datetime
+) -> Decimal:
+    """売上に適用する消費税の税率を返す。
+
+    Args:
+        repo_manager (RepositoryManager): リポジトリマネージャー
+        dt (datetime): 消費税の税率の基準日時
+
+    Returns:
+        Decimal: 売上に適用する消費税の税率
+
+    TODO: 次の単体テストを実装すること
+    - 日付を指定して売上に適用する消費税が正しいことを確認
+    """
+    repo = repo_manager.consumption_tax()
+    taxes = repo.list()
+    tax_manager = ConsumptionTaxManager(taxes)
+    return tax_manager.consumption_tax_rate(dt)
+
+def register_consumption_tax_and_save_list(
+    repo_manager: RepositoryManager, tax: ConsumptionTax,
+) -> None:
+    """消費税を消費税リストに追加して、消費税リストを保存する。
+
+    Args:
+        repo_manager (RepositoryManager): リポジトリマネージャー
+        tax (ConsumptionTax): 追加する消費税
+
+    TODO: 次の単体テストを実装すること
+    - 消費税を消費税リストに追加して、消費税リストを入れ替えるメソッドが呼ばれたことを確認
+    """
+    repo = repo_manager.consumption_tax()
+    taxes = repo.list()
+    tax_manager = ConsumptionTaxManager(taxes)
+    tax_manager.add_consumption_tax(tax)
+    repo.replace_list(tax_manager.consumption_taxes)
+```
+
+消費者リポジトリの代わりに、`list`メソッドが呼ばれたときに、テスト用の消費者リスト(`THREE_CONSUMPTION_TAXES`)を返す`MagicMock`を準備します。
+
+そして、`RepositoryManager`を`MagicMock`に置き換え、消費税リポジトリを取得する`consumption_tax`メソッドが上記で作成した`MagicMock`を返すようにします。
+
+単体テストの実装例を次に示します。
+
+```python
+# tests/drugstore/usecases/test_consumption_tax_usecase.py
+import copy
+import unittest
+import uuid
+from decimal import Decimal
+from typing import Tuple
+from unittest.mock import MagicMock, patch
+
+from drugstore.common import jst_datetime
+from drugstore.domain.models.consumption_taxes import (
+    MAX_CONSUMPTION_TAX_END,
+    MIN_CONSUMPTION_TAX_BEGIN,
+    ConsumptionTax,
+)
+from drugstore.usecases.consumption_taxes import (
+    register_consumption_tax_and_save_list,
+    retrieve_applicable_consumption_tax_rate,
+)
+from tests.drugstore.utils.test_consumption_tax_manager import THREE_CONSUMPTION_TAXES
+
+
+def repository_manager_test_double() -> Tuple[MagicMock, MagicMock]:  # noqa: D103
+    """リポジトリマネージャーのテストダブル返す。
+
+    Returns:
+        (MagicMock, MagicMock): リポジトリマネージャのテストダブルと、消費税リポジトリの
+            テストダブルを格納したタプル
+    """
+    # 消費税リポジトリのスタブ
+    repo_tdbl = MagicMock()
+    repo_tdbl.list.return_value = copy.deepcopy(THREE_CONSUMPTION_TAXES)
+    # リポジトリマネージャーのスタブ
+    repo_manager_tdbl = MagicMock()
+    repo_manager_tdbl.consumption_tax.return_value = repo_tdbl
+    return repo_manager_tdbl, repo_tdbl
+
+
+class ConsumptionTaxUsecaseTest(unittest.TestCase):
+    """消費税ユースケーステストクラス"""
+
+    def test_retrieve_applicable_consumption_tax_rate(self) -> None:
+        """売上に適用する消費税を正しく取得できることを確認"""
+        # 準備
+        repo_manager_tdbl, _ = repository_manager_test_double()
+        dt = jst_datetime(2024, 5, 1)
+
+        # 実行
+        with patch(
+            "drugstore.domain.repositories.RepositoryManager", repo_manager_tdbl
+        ):
+            tax = retrieve_applicable_consumption_tax_rate(repo_manager_tdbl, dt)
+
+        # 検証
+        self.assertEqual(Decimal("0.1"), tax)
+
+    def test_register_consumption_tax_and_save_list(self) -> None:
+        """消費税を消費税リストに追加して、消費税リストを入れ替えるメソッドが呼ばれたことを確認"""
+        # 準備
+        tax = ConsumptionTax(
+            uuid.uuid4(),
+            jst_datetime(2024, 5, 1),
+            jst_datetime(2024, 6, 1),
+            Decimal("0.12"),
+        )
+        repo_manager_tdbl, repo_tdbl = repository_manager_test_double()
+        repo_tdbl.replace_list = MagicMock()
+        expected_args = [
+            ConsumptionTax(
+                THREE_CONSUMPTION_TAXES[0].id,
+                MIN_CONSUMPTION_TAX_BEGIN,
+                jst_datetime(2024, 4, 1),
+                Decimal("0.05"),
+            ),
+            ConsumptionTax(
+                THREE_CONSUMPTION_TAXES[1].id,
+                jst_datetime(2024, 4, 1),
+                jst_datetime(2024, 5, 1),
+                Decimal("0.10"),
+            ),
+            ConsumptionTax(
+                tax.id,
+                jst_datetime(2024, 5, 1),
+                jst_datetime(2024, 6, 1),
+                Decimal("0.12"),
+            ),
+            ConsumptionTax(
+                THREE_CONSUMPTION_TAXES[2].id,
+                jst_datetime(2024, 6, 1),
+                MAX_CONSUMPTION_TAX_END,
+                Decimal("0.15"),
+            ),
+        ]
+
+        # 実行
+        with patch(
+            "drugstore.domain.repositories.RepositoryManager", repo_manager_tdbl
+        ):
+            tax = register_consumption_tax_and_save_list(repo_manager_tdbl, tax)
+
+        # ConsumptionTaxRepositoryのreplace_listメソッドの呼び出しを検証
+        self.assertEqual(1, repo_tdbl.replace_list.call_count)
+        args = repo_tdbl.replace_list.call_args.args[0]
+        self.assertEqual(4, len(args))
+        results = [
+            is_same_consumption_tax_conditions(a, b)
+            for a, b in zip(expected_args, args)
+        ]
+        self.assertTrue(all(results))
+
+
+def is_same_consumption_tax_conditions(a: ConsumptionTax, b: ConsumptionTax) -> bool:
+    """消費税の起点日時、終点日時、税率が等しいか確認する。
+
+    Args:
+        a (ConsumptionTax): 消費税
+        b (ConsumptionTax): 消費税
+
+    Returns:
+        bool: 等しい場合はTrue、そうでない場合はFalse
+    """
+    if a.begin != b.begin:
+        return False
+    if a.end != b.end:
+        return False
+    return True if a.rate == b.rate else False
+```
