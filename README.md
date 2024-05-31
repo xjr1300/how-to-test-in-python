@@ -122,11 +122,11 @@
     - [Todo Tree拡張機能のインストール](#todo-tree拡張機能のインストール)
     - [テストの実装を連取するサンプルプロジェクトの説明](#テストの実装を連取するサンプルプロジェクトの説明)
     - [商品クラスと単体テストの実装](#商品クラスと単体テストの実装)
+    - [単体テストの実行方法](#単体テストの実行方法)
     - [会員区分クラスと単体テストの実装](#会員区分クラスと単体テストの実装)
     - [顧客クラスと単体テストの実装](#顧客クラスと単体テストの実装)
     - [消費税と単体テストの実装](#消費税と単体テストの実装)
-    - [売上明細と単体テストの実装](#売上明細と単体テストの実装)
-    - [消費税を管理するクラスと単体テストを実装](#消費税を管理するクラスと単体テストを実装)
+    - [消費税管理者クラスと単体テストの実装](#消費税管理者クラスと単体テストの実装)
       - [適用される消費税の税率](#適用される消費税の税率)
       - [消費税リストに消費税を追加](#消費税リストに消費税を追加)
         - [新しく追加する消費税の期間を含む消費税が消費税リストに存在する場合](#新しく追加する消費税の期間を含む消費税が消費税リストに存在する場合)
@@ -134,15 +134,19 @@
         - [単体テスト](#単体テスト-1)
       - [消費税の税額を変更する](#消費税の税額を変更する)
       - [消費税を削除する場合](#消費税を削除する場合)
-    - [売上明細と単体テストの実装](#売上明細と単体テストの実装-1)
+    - [売上明細と単体テストの実装](#売上明細と単体テストの実装)
     - [売上と単体テストの実装](#売上と単体テストの実装)
       - [イニシャライザ](#イニシャライザ)
-      - [売上明細の追加と削除](#売上明細の追加と削除)
+      - [売上明細の追加](#売上明細の追加)
+      - [売上明細の削除](#売上明細の削除)
     - [ユースケースの実装とその単体テストの実装](#ユースケースの実装とその単体テストの実装)
       - [リポジトリとリポジトリマネージャーの定義](#リポジトリとリポジトリマネージャーの定義)
       - [消費税ユースケースの実装](#消費税ユースケースの実装)
   - [統合テストの実装演習](#統合テストの実装演習)
-    - [具象リポジトリの実装](#具象リポジトリの実装)
+    - [割引率、消費税率](#割引率消費税率)
+    - [sqlite3の外部参照制約](#sqlite3の外部参照制約)
+    - [`termcolor`パッケージのインストール](#termcolorパッケージのインストール)
+    - [具象リポジトリと統合テストの実装](#具象リポジトリと統合テストの実装)
 
 ## テストの種類
 
@@ -1346,7 +1350,7 @@ poetryは、プロジェクトディレクトリの直下に、`tests`ディレ�
 
 #### 単体テストの配置
 
-単体テストは、`tests`ディレクトリの配下に、プロダクションコードが配置されているディレクトリ構造を再現して配置します。
+単体テストは、`tests/units`ディレクトリの配下に、プロダクションコードが配置されているディレクトリ構造を再現して配置します。
 単体テストは、テスト対象オブジェクトが実装されているファイルの名前に`test_`を付けたファイルに実装します。
 ただし、`__init__.py`に実装されているテスト対象コードを実装する場合は、その`__init__.py`ファイルの親ディレクトリの名前の先頭に`test_`をつけたファイルにテストを実装します。
 
@@ -1361,30 +1365,32 @@ poetryは、プロジェクトディレクトリの直下に、`tests`ディレ�
 │    └── bar_sub
 │         ├── __init__.py   # テスト対象オブジェクトが実装されていない
 │         └── bar_sub_a.py
-└── tests
-     ├── __init__.py
-     ├── foo
-     │    ├── __init__.py
-     │    └── test_foo_a.py
-     ├── test_bar.py    # bar/__init__.pyに実装されているテスト対象コードの単体テストを実装
-     └── bar
+└── units
+     ├── __init__.py   # テスト対象オブジェクトが実装されている
+     └── tests
           ├── __init__.py
-          ├── test_bar_a.py
-          └── bar_sub
+          ├── foo
+          │    ├── __init__.py
+          │    └── test_foo_a.py
+          ├── test_bar.py    # bar/__init__.pyに実装されているテスト対象コードの単体テストを実装
+          └── bar
                ├── __init__.py
-               └── test_bar_sub_a.py
+               ├── test_bar_a.py
+               └── bar_sub
+                    ├── __init__.py
+                    └── test_bar_sub_a.py
 ```
 
 #### 統合テストの実装方法
 
-統合テストは、`tests`ディレクトリの直下に`integration_tests`ディレクトリを作成して、その配下に配置します。
-なお、`integration_tests`ディレクトリの下に、ディレクトリを作成して、種類ごとにまとめることもできます。
+統合テストは、`tests/integrations`ディレクトリに配置します。
+なお、`tests/integrations`ディレクトリの下に、ディレクトリを作成して、種類ごとにまとめることもできます。
 
 ```text
 <project dir>
 └── tests
      ├── __init__.py
-     └── integration_tests
+     └── integrations
           ├── __init__.py
           ├── user_management
           │    ├── __init__.py
@@ -1912,112 +1918,162 @@ class PatchDictTest(unittest.TestCase):
 - 売上の消費税額は、円未満を切り捨てた額です。
 - 売上の合計額は、小計から割引額を引き、消費税額を加えた額です。
 - 顧客、会員区分、売上、売上明細、商品、消費税率は、データベースで管理します。
-  - 売上明細を1つ以上持っていない売上は、データベースに保存しません。
 
 ### 商品クラスと単体テストの実装
 
-1. 商品を単体テストするファイルを作成して、`unittest.TestCase`から発生した`ItemTest`クラスを定義してください。単体テストは実装しないでください。
-2. `ItemTest`クラスのdocstringに、「TODO: 単体テストを実装」と1行で入力してください。
-3. `ItemTest`クラスのdocstring内の上記で入力した行の下に、商品の不変条件を満たしていることを確認するために必要なテストケースを箇条書きで入力してください。
-4. 商品の不変条件を満たすように`Item`クラスに`__init__`メソッドを実装してください。
-5. `__init__`メソッドを実装しているときに、必要なテストケースが見つかった場合は、箇条書きにテストケースを追加してください。
-6. `ItemTest`クラスのdocstringに入力したテストケースを1つ取り上げ、単体テストを実装してください。
-7. 上記で実装した単体テストがパスするか確認してください。
-8. 上記で実装した単体テストにパスしたら、箇条書きからそのテストケースを削除してください。
-9. 必要に応じて`__init__`メソッドをリファクタリングしてください。
-10. 上記でリファクタリングしているときに、必要なテストケースが見つかった場合は、箇条書きにテストケース追加してください。
-11. 上記リファクタリング後、テストがパスするか確認してください。
-12. 箇条書きで入力したテストケースについて、6から11を繰り返してください。
-13. docstringの「TODO: 単体テストを実装」を削除してください。
+1. `drugstore/domain/models/items.py`ファイルに`Item`クラスを定義します。
+2. `Item`クラスのイニシャライザを定義して、メソッド本体を`pass`と実装して、メソッド本体の実装を後回しにします。
+3. `Item`クラスのイニシャライザのdocstringに、「TODO: 単体テストを実装」を入力します。
+4. `Item`クラスのイニシャライザのdocstringの上記TODOの下に、商品の不変条件などを満たすことを確認するために必要な単体テストのテストケースをリストします。
+5. `Item`クラスのイニシャライザを実装します。
+6. `Item`クラスのイニシャライザを実装しているときに、漏れているテストケースがあれば、docstringにリストします。
+7. `tests/units/drugstore/domain/models/test_items.py`ファイルを作成して、`unittest.TestCase`から発生した`ItemTest`クラスを定義します。
+8. `Item`クラスのイニシャライザのテストケースを1つ取り上げて、単体テストを実装します。
+9. 単体テストを実装しているときに、漏れているテストケースがあれば、docstringにリストします。
+10. 実装した単体テストをパスするか確認します。
+   単体テストにパスしない場合は、単体テストにパスするまで、イニシャライザまたは単体テストを修正します。
+11. 単体テストにパスしたら、必要に応じてイニシャライザをリファクタリングします。
+12. イニシャライザをリファクタリング後、単体テストにパスすることを確認します。
+13. リファクタリング後に単体テストにパスすることを確認できたら、そのテストケースをdocstringがら削除します。
+14. イニシャライザのすべてのテストケースについて、8から11を繰り返します。
+15. イニシャライザのdocstringから、「TODO: 単体テストを実装」を削除します。
 
-`ItemTest`クラスのdocstringには、次の通りテストケースを書き留めます。
+`Item`クラスのイニシャライザのdocstringの例を次に示します。
 
 ```python
+# drugstore/domain/models/items.py
+import uuid
+from dataclasses import dataclass
+from decimal import Decimal
+
+
+@dataclass
+class Item:
+    """商品"""
+
+    def __init__(self, id: uuid.UUID, name: str, unit_price: Decimal) -> None:
+        """イニシャライザ
+
+        Args:
+            id (uuid.UUID): 商品ID
+            name (str): 商品名
+            unit_price (Decimal): 商品単価
+
+        Raises:
+            ValueError: 商品の商品名が空文字です。
+            ValueError: 商品の単価が0円未満です。
+
+        TODO: 次の単体テストを実装すること
+        - 妥当な属性で商品を構築できることを確認
+        - 商品名の先頭に空白文字が含まれている場合に、先頭の空白文字を削除した商品名になっていることを確認
+        - 商品名の末尾にに空白文字が含まれている場合に、末尾の空白文字を削除した商品名になっていることを確認
+        - 商品名の先頭と末尾に空白文字が含まれている場合に、先頭と末尾の空白文字を削除した商品名になっていることを確認
+        - 空文字列の商品名で商品を構築できないことを確認
+        - 空白文字だけの商品名で商品を構築できないことを確認
+        - 0円より小さい単価で商品を構築できないことを確認
+        """  # noqa: E501
+```
+
+単体テストの実装例を次に示します。
+
+```python
+# tests/units/drugstore/domain/models/test_items.py
 import unittest
+import uuid
+from decimal import Decimal
+
+from drugstore.domain.models.items import Item
 
 
 class ItemTest(unittest.TestCase):
-    """商品テストクラス
+    """商品テストクラス"""
 
-    TODO: 次の単体テストを実装すること
+    def test_instantiate_item_by_valid_attributes(self) -> None:
+        """妥当な属性で商品を構築できることを確認"""
+        # 準備
+        id = uuid.uuid4()
+        name = "正露丸"
+        unit_price = Decimal("1000")
 
-    - 妥当な属性で商品を構築できることを確認
-    - 商品名の先頭に空白文字が含まれている場合に、先頭の空白文字を削除した商品名になっていることを確認
-    - 商品名の末尾にに空白文字が含まれている場合に、末尾の空白文字を削除した商品名になっていることを確認
-    - 商品名の先頭と末尾に空白文字が含まれている場合に、先頭と末尾の空白文字を削除した商品名になっていることを確認
-    - 空文字列の商品名で商品を構築できないことを確認
-    - 空白文字だけの商品名で商品を構築できないことを確認
-    - 0円より小さい単価で商品を構築できないことを確認
-    """  # noqa: E501
+        # 実行
+        item = Item(id, name, unit_price)
+
+        # 検証
+        self.assertEqual(id, item.id)
+        self.assertEqual(name, item.name)
+        self.assertEqual(1000, item.unit_price)
 ```
 
-テストは次のとおり実行できます。
+### 単体テストの実行方法
+
+テストは次の通り実装します。
 
 ```sh
-# testsディレクトリに実装したすべてのテストを実行
-poetry run python -m unittest
+# tests/unitsディレクトリ以下に実装したすべてのテストを実行
+poetry run python -m unittest discover -s tests.units
 
 # 指定したファイルに実装したテストをすべて実行
-# 次の場合、tests/drugstore/domain/models/test_items.pyに実装したテストが対象
-poetry run python -m unittest tests.drugstore.domain.models.test_items
+# 次の場合、tests/units/drugstore/domain/models/test_items.pyに実装したテストが対象
+poetry run python -m unittest tests.units.drugstore.domain.models.test_items
 
 # 指定したテストクラスに実装したテストをすべて実行
 # 次の場合、上記ファイルのItemTestクラスに実装したすべてのテストが対象
-poetry run python -m unittest tests.drugstore.domain.models.test_items.ItemTest
+poetry run python -m unittest tests.units.drugstore.domain.models.test_items.ItemTest
 
 # 指定したテストケースのみ実行
 # 次の場合、上記ItemTestクラスに実装した次のメソッドが対象
 #   test_instantiate_item_by_valid_attributes
-poetry run python -m unittest tests.drugstore.domain.models.test_items.ItemTest.test_instantiate_
-item_by_valid_attributes
+poetry run python -m unittest tests.units.drugstore.domain.models.test_items.ItemTest.test_instantiate_item_by_valid_attributes
 ```
 
 ### 会員区分クラスと単体テストの実装
 
-商品クラスと同様に会員区分クラスのイニシャライザとそのイニシャライザの単体テストを実装してください。
-会員区分クラスは、`drugstore/domain/models/membership_types.py`に定義された`MembershipType`クラスです。
-
-イニシャライザでは、会員区分の会員区分コードに、同じファイルに定義されている会員区分コード(`MembershipTypeCode`)列挙型の値のみ設定できるようにしてください。
-また、会員区分名は、会員区分コードで表現される会員区分名のみ設定できようにしてください。
-なお、設定可能な会員区分コードと会員区分名は、同じファイルの`MEMBERSHIP_TYPE_LIST`変数に定義されています。
+`drugstore/domain/models/membership_types.py`ファイルに、会員区分クラス(`MembershipType`)とそのイニシャライザを実装してください。
+また、`tests/units/drugstore/domain/models/test_membership_types.py`ファイルに、会員区分クラスのイニシャライザの単体テストを実装してください。
 
 ### 顧客クラスと単体テストの実装
 
-顧客クラスのイニシャライザとそのイニシャライザの単体テストを実装してください。
-顧客クラスは、`drugstore/domain/models/customers.py`に定義された`Customer`クラスです。
+`drugstore/domain/models/customers.py`ファイルに、顧客クラス(`Customer`)とそのイニシャライザを実装してください。
+また、`tests/units/drugstore/domain/models/test_customers.py`ファイルに、顧客クラスのイニシャライザの単体テストを実装してください。
 
 ### 消費税と単体テストの実装
 
-消費税クラスのイニシャライザとそのイニシャライザの単体テストを実装してください。
-消費税クラスは、`drugstore/domain/models/consumption_taxes.py`に定義された`ConsumptionTax`クラスです。
+`drugstore/domain/models/consumption_taxes.py`ファイルに、消費税クラス(`ConsumptionTax`)とそのイニシャライザを実装してください。
+また、`tests/units/drugstore/domain/models/test_consumption_taxes.py`ファイルに、消費税クラスのイニシャライザの単体テストを実装してください。
 
-消費税クラスを実装したファイルには、最も過去消費税の起点日時を示す`datetime`型の`MIN_CONSUMPTION_TAX_BEGIN`変数と、最も将来の消費税の終点日時を示す`MAX_CONSUMPTION_TAX_END`変数が定義されています。
+消費税は、起点日時を左閉区間、終点日時を右開区間で表現します。
 
-`datetime`型で`MIN_CONSUMPTION_TAX_BEGIN`よりも過去、`MAX_CONSUMPTION_TAX_END`よりも未来の日時を表現できないため、どのようにテストしたら良いか考えてください。
+また、消費税を適用する期間の起点日時の最小値と終点日時の最大値を次の通り定義して、消費税の不変条件としてください。
+なお、`JST`や`is_jst_datetime`は、`drugstore/common/__init__.py`に定義してあります。
 
-なお、`drugstore/common/__init__.py`の`JST`変数に日本標準時を表す`zoneinfo.ZoneInfo`オブジェクトが定義されています。
+```python
+# drugstore/domain/models/consumption_taxes.py
+from drugstore.common import JST, is_jst_datetime
 
-### 売上明細と単体テストの実装
 
-売上明細クラスのイニシャライザとそのイニシャライザの単体テストを実装してください。
-売上明細クラスは、`drugstore/domain/models/sales.py`に実装された`SaleDetail`クラスです。
+# 最も過去の消費税の起点日時
+MIN_CONSUMPTION_TAX_BEGIN = datetime.min.replace(tzinfo=JST)
+# 最も将来の消費税の終点日時
+MAX_CONSUMPTION_TAX_END = datetime.max.replace(tzinfo=JST)
+```
 
-### 消費税を管理するクラスと単体テストを実装
+### 消費税管理者クラスと単体テストの実装
 
-消費税を管理するクラスとその単体テストを実装してください。
-消費税を管理するクラスは、`drugstore/utils/consumption_tax_manager.py`に実装された`ConsumptionTaxManager`クラスです。
+`drugstore/utils/consumption_tax_manager.py`ファイルに、消費税管理者クラス(`ConsumptionTaxManager`)とそのメソッドを実装してください。
+また`tests/units/drugstore/utils/test_consumption_tax_manager.py`ファイルに、消費税管理者クラスのメソッドの単体テストを実装してください。
 
-`ConsumptionTaxManager`クラスは、最も古い起点日時から最も新しい終点日時まで、期間が途切れないように消費税をリストで(消費税リスト)管理します。
-また、売上日時を基準に、売上に適用する消費税の税率を決定します。
+消費税管理者クラスは、`MIN_CONSUMPTION_TAX_BEGIN`から`MAX_CONSUMPTION_TAX_END`までの消費税を消費税リストで管理します。
 
-`ConsumptionTaxManager`は、すべての消費税をデータベースから取得します。
-また、`ConsumptionTaxManager`は、データベースに記録されているすべての消費税を削除した後、管理しているすべて消費税をデータベースに書き込みます。
+- 消費税リストに格納された消費税を、起点日時の昇順で管理してください。
+- 全体の消費税の期間に、抜けや重複がないようにしてください。
+- 同じ消費税の税率が連続しないようにしてください。
 
-消費税は、起点日時が左閉区間、終点日時が右開区間で表現されるため、消費税の税率を適用するときは、売上日時が消費税の起点日時と終点日時で表現される左閉右開区間 ($起点日時 <= 売上日時 < 終点日時$)に含まれる消費税の税率を適用します。
+消費税リストは、消費税管理者クラスの`consumption_taxes`属性で消費税リストを管理してください。
 
-`ConsumptionTaxManager`クラスは、consumption_taxesというリストを属性に持ち、外部に公開します。
+消費税管理者クラスは、売上日時を基準に、売上に適用する消費税の税率を決定します。
+消費税は、起点日時を左閉区間で終点日時を右開区間で表現するため、消費税の税率は、消費税の起点日時と終点日時で表現される左閉右開区間 ($起点日時 <= 売上日時 < 終点日時$)に売上日時を含む消費税の税率になります。
 
-また、`ConsumptionTaxManager`クラスには、次のメソッドを実装します。
+消費税管理者クラスには、次のメソッドを実装します。
 
 - `__init__(self, consumption_taxes: List[ConsumptionTax]) -> None`
   - 消費税のリストを受け取り、消費税を起点日時の昇順に並び替えます。
@@ -2030,6 +2086,33 @@ item_by_valid_attributes
   - 消費税の起点日時や終点日時の変更は、add_consumption_taxメソッドで代用します。
 - `remove_consumption_tax(self, id: int) -> None`
   - 指定された消費税IDを持つ消費税を削除します。
+
+`tests/units/drugstore/utils/test_consumption_tax_manager.py`ファイルには、テスト用の消費税リストを次の通り定義してテストで利用してください。
+
+```python
+# tests/units/drugstore/utils/test_consumption_tax_manager.py
+# 3つの消費税を登録した消費税リスト
+THREE_CONSUMPTION_TAXES = [
+    ConsumptionTax(
+        uuid.uuid4(),
+        MIN_CONSUMPTION_TAX_BEGIN,
+        jst_datetime(2024, 4, 1),
+        Decimal("0.05"),
+    ),
+    ConsumptionTax(
+        uuid.uuid4(),
+        jst_datetime(2024, 4, 1),
+        jst_datetime(2024, 6, 1),
+        Decimal("0.10"),
+    ),
+    ConsumptionTax(
+        uuid.uuid4(),
+        jst_datetime(2024, 6, 1),
+        MAX_CONSUMPTION_TAX_END,
+        Decimal("0.15"),
+    ),
+]
+```
 
 #### 適用される消費税の税率
 
@@ -2066,7 +2149,7 @@ item_by_valid_attributes
 
 ##### 単体テスト
 
-消費税を追加する場合、次の単体テストが必要です。
+次の単体テストのテストケースを実装して、消費税リストの不変条件を満たすか確認してください。
 
 - 消費税リストに追加する消費税(a)の期間を含む消費税(e)が存在する場合
   - 追加する消費税の期間と既存の消費税の期間が完全に含まれる場合
@@ -2083,7 +2166,7 @@ item_by_valid_attributes
 
 #### 消費税の税額を変更する
 
-次の単体テストを実装する必要があります。
+次の単体テストのテストケースを実装して、消費税リストの不変条件を満たすか確認してください。
 
 - idが一致する消費税の税率を変更できることを確認(起点日時、終点日時が変更されていないことを確認)
 - idが一致する消費税が消費税リストに存在しないときに、ValueErrorがスローされることを確認
@@ -2097,18 +2180,19 @@ item_by_valid_attributes
 もし、削除した後の消費税が存在しない場合、前の消費税の終点日時を`MAX_CONSUMPTION_TAX_END`に変更します。
 もし、削除した前の消費税が存在しない場合、後の消費税の起点日時を`MIN_CONSUMPTION_TAX_BEGIN`に変更します。
 
+次の単体テストのテストケースを実装して、消費税リストの不変条件を満たすか確認してください。
+
 ### 売上明細と単体テストの実装
 
-売上明細クラスのイニシャライザとその単体テストを実装してください。
-売上明細クラスは、`drugstore/domain/models/sales.py`に実装された`SaleDetail`クラスです。
+`drugstore/domain/models/sales.py`ファイルに、売上明細クラス(`SaleDetail`)とそのイニシャライザを実装してください。
+また、`tests/units/drugstore/domain/models/test_sales.py`ファイルに、売上明細クラスのイニシャライザの単体テストを実装してください。
 
 ### 売上と単体テストの実装
 
-売上クラスは、`drugstore/domain/models/sales.py`に実装された`Sale`クラスです。
+`drugstore/domain/models/sales.py`ファイルに、売上クラス(`Sale`)とそのメソッドを実装してください。
+また、`tests/units/drugstore/domain/models/test_sales.py`ファイルに、売上クラスのメソッドの単体テストを実装してください。
 
 #### イニシャライザ
-
-イニシャライザとその単体テストを実装してください。
 
 イニシャライザでは、顧客、売上日時、消費税率を引数で受け取り、メンバ変数に設定します。
 ただし、会員でない顧客は`None`として受け取ります。
@@ -2124,29 +2208,33 @@ item_by_valid_attributes
 - 消費税額を`Decimal("0")`で初期化
 - 合計額を`Decimal("0")`で初期化
 
-#### 売上明細の追加と削除
+#### 売上明細の追加
 
 売上明細を追加する`add_sale_detail`メソッドとその単体テストを実装してください。
 売上明細の追加では、売上に同じ商品を持つ売上明細がある場合、その売上明細の数量に追加する売上明細の数量を足してください。
 
-また、売上明細を削除する`remove_sale_detail`メソッドとその単体テストを実装してください。
+なお、売上明細を追加するたびに、小計、割引率、割引額、消費税額、合計額を再計算します。
+
+#### 売上明細の削除
+
+売上明細を削除する`remove_sale_detail`メソッドとその単体テストを実装してください。
 売上明細の削除では、売上明細の商品の商品IDを指定して削除できるようにしてください。
 
-なお、売上明細を追加または削除するたびに、小計、割引率、割引額、消費税額、合計額を再計算します。
+なお、売上明細を削除するたびに、小計、割引率、割引額、消費税額、合計額を再計算します。
 
 ### ユースケースの実装とその単体テストの実装
 
-管理下にあるプロセス外依存をスタブやモックに置き換えて単体テストをする利点はほとんどなく、**壊れやすい単体テスト**を作成することになると考えられます。
+管理下にあるプロセス外依存をスタブやモックに置き換えて単体テストをする利点はほとんどなく、**壊れやすい単体テスト**を作成することになると考えています。
 
-> 第三者のメール配信サービスなど、管理下にないプロセス外依存は単体テストを実装しないか、統合テストでスタブやモックに置き換えます。
+> 第三者のメール配信サービスなど、管理下にないプロセス外依存は、単体テストを実装しないか、統合テストでスタブやモックに置き換えます。
 
 単体テストを実装する演習をするために、ここでは、次のユースケースを実装してその単体テストを実装します。
 
 - 売上に適用する消費税の税率を取得する
 - 消費税を追加して、消費税のリストを入れ替える
 
-単体テストでは、リポジトリから消費税のリストを返すことを模倣するスタブと、リポジトリが管理する消費税のリストを入れ替えることを模倣するモックを使用した単体テストを実装します。
-ただし、本来、これらのテストは、管理下にあるプロセス外依存を直接利用した統合テストを実装するべきであることに留意してください。
+単体テストでは、リポジトリから消費税のリストを返すことを模倣するスタブと、リポジトリが管理する消費税のリストを入れ替えることを模倣するモックを使用します。
+ただし、本来、これらのテストは、管理下にあるプロセス外依存を直接利用する統合テストを実装するべきであることに留意してください。
 
 #### リポジトリとリポジトリマネージャーの定義
 
@@ -2166,13 +2254,13 @@ item_by_valid_attributes
 
 - 顧客
   - 顧客のリストを返す
-  - 顧客IDで指定される顧客を返す
+  - 顧客IDが一致する顧客を返す
   - 顧客を登録する
   - 顧客を更新する
   - 顧客を削除する
 - 商品
   - 商品のリストを返す
-  - 商品IDで指定される商品を返す
+  - 商品IDが一致する商品を返す
   - 商品を登録する
   - 商品を更新する
   - 商品を削除する
@@ -2181,7 +2269,7 @@ item_by_valid_attributes
   - 消費税のリストを入れ替える
 - 売上
   - 売上のリストを返す
-  - 売上IDで指定される売上を返す
+  - 売上IDが一致する売上を返す
   - 売上を登録する
   - 売上を削除する
 
@@ -2256,7 +2344,7 @@ def register_consumption_tax_and_save_list(
 単体テストの実装例を次に示します。
 
 ```python
-# tests/drugstore/usecases/test_consumption_tax_usecase.py
+# tests/units/drugstore/usecases/test_consumption_tax_usecase.py
 import copy
 import unittest
 import uuid
@@ -2274,7 +2362,8 @@ from drugstore.usecases.consumption_taxes import (
     register_consumption_tax_and_save_list,
     retrieve_applicable_consumption_tax_rate,
 )
-from tests.drugstore.utils.test_consumption_tax_manager import THREE_CONSUMPTION_TAXES
+
+from tests.units.drugstore.utils.test_consumption_tax_manager import THREE_CONSUMPTION_TAXES
 
 
 def repository_manager_test_double() -> Tuple[MagicMock, MagicMock]:  # noqa: D103
@@ -2385,97 +2474,82 @@ def is_same_consumption_tax_conditions(a: ConsumptionTax, b: ConsumptionTax) -> 
 
 ## 統合テストの実装演習
 
-商品の売上をSQLiteデータベースに保存するユースケースの統合テストを実装します。
-
 統合テストでは、次の`IntegrationTestCase`派生クラスに実装します。
 `IntegrationTestCase`クラスは、テストケースを実行するたびに、テスト用データベースを準備して、テストケースが終了したらテスト用データベースを削除します。
+
+`IntegrationTestCase`の実装は、`tests/integrations/__init__.py`に配置してあります。
+
+また、`IntegrationTestCase`が実行するSQL文を記録したファイルは、`sql`ディレクトリにあります。
+なお、テーブル作成文で制約を設定する場合は、必ず制約名を指定することを推奨します。
+DBMSの実装によりますが、DBMSが返すエラーメッセージに制約名が含まれることがあり、問題の解決につながります。
+
+`drugstore`では、制約名を次の命名規則で設定しています。
+
+- 主キー制約: `pk_テーブル名_カラム名[_カラム名...]`
+- 外部キー制約: `fk_参照元テーブル名__参照先テーブル名`
+  - 本来なら、`fk_参照元テーブル名_カラム名[_カラム名...]___参照先テーブル名_カラム名[_カラム名...]`が良いと考えていますが長い・・・
+- ユニーク制約: `uq_テーブル名_カラム名[_カラム名...]`
+- チェック制約: `ck_テーブル名_カラム名[_カラム名...]`
+- インデックス: `ix_テーブル名_カラム名[_カラム名...]`
+
+テスト用のデータベースは、`tests/integrations/databases`ディレクトリに作成されます。
+テスト用のデータベースは、それぞれのテストケースごとに作成して、テストケースが終了すると削除されます。
+統合テスト実行中にエラーが発生して、テスト用データベースが削除されないこともあるため、テストクラスが実行されるときに、テスト用データベースを削除する`remove_test_dbs`関数を`setUpClass`メソッドで実行します。
+
 これにより、`IntegrationTestCase`派生クラスに実装されたテストケースは、発生した副作用を他のテストケースに与えないようにします。
 
-```python
-# tests/integration_tests/__init__.py
-import os
-import sqlite3
-import sys
-import unittest
-import uuid
-from glob import glob
-from typing import Tuple
+### 割引率、消費税率
 
-DATABASE_DIR = os.path.join(os.getcwd(), "tests", "integration_tests", "dbs")
+sqlite3は、固定少数点数を扱えません。
+よって、消費税の税率と割引率は、`INTEGER`型で保存し、`10000`倍して保存します。
 
-SQL_DIR = os.path.join(os.getcwd(), "sql")
+### sqlite3の外部参照制約
 
+sqlite3は、デフォルトで外部参照制約を有効にしません。
+外部参照制約を有効にするために、データベースに接続するたびに、次のSQL文を実行しています。
 
-def remove_test_dbs() -> None:
-    """テスト用データベースをすべて削除する。"""
-    path = os.path.join(DATABASE_DIR, "test_*.db3")
-    db_paths = glob(path, recursive=False)
-    for db_path in db_paths:
-        try:
-            os.remove(db_path)
-        except Exception:
-            print(f"can't remove {db_path}", file=sys.stderr)
-
-
-def create_test_db() -> Tuple[sqlite3.Connection, str]:
-    """テスト用データベースを作成する。
-
-    Returns:
-        Tuple[sqlite3.Connection, str]: データベース接続とデータベースのファイルパスを
-            格納したタプル
-    """
-    # テーブル作成SQL文を取得
-    sql_path = os.path.join(SQL_DIR, "create_tables.sql")
-    with open(sql_path, "rt") as sql_file:
-        sql_statements = sql_file.read()
-    # データベースを保存するディレクトリを作成
-    if not os.path.isdir(DATABASE_DIR):
-        os.makedirs(DATABASE_DIR)
-    # データベースを作成
-    db_name = f"test_{uuid.uuid4()}.db3"
-    db_path = os.path.join(DATABASE_DIR, db_name)
-    conn = sqlite3.connect(db_path)
-    cursor = conn.cursor()
-    cursor.executescript(sql_statements)
-    conn.commit()
-    return conn, db_path
-
-
-class IntegrationTestCase(unittest.TestCase):
-    """統合テストクラス
-
-    sqlite3はネストしたトランザクションをサポートしていない。
-    よって、setUpClassでSAVEPOINTを作成して、tearDownでSAVEPOINTにロールバックする
-    ことで、それぞれテストケースを実行する前の状態にデータベースを戻したいが、sqlite3は
-    COMMITすると未処理のトランザクションをコミットして、トランザクションスタックを空にする。
-    つまり、作成したSAVEPOINTがすべて削除され、コミット後はSAVEPOINTまでロールバックできない。
-    よって、setUpでデータベースを作成して、tearDownでデータベースを削除するように実装した。
-    """
-
-    # データベース接続
-    conn: sqlite3.Connection
-    # データベースのパス
-    db_path: str = ""
-
-    def setUp(self) -> None:  # noqa: D102
-        result = super().setUp()
-        # テスト用データベースをすべて削除
-        remove_test_dbs()
-        # テースト用データベースを作成
-        conn, db_path = create_test_db()
-        # メンバ変数を設定
-        self.conn = conn
-        self.db_path = db_path
-        return result
-
-    def tearDown(self) -> None:  # noqa: D102
-        # テスト用データベースと切断
-        self.conn.close()
-        # テスト用データベースを削除
-        try:
-            os.remove(self.db_path)
-        except Exception:
-            print(f"can't remove {self.db_path}", file=sys.stderr)
+```sql
+PRAGMA foreign_keys = true;
 ```
 
-### 具象リポジトリの実装
+### `termcolor`パッケージのインストール
+
+また、テスト用のデータベースを削除できなかったときに、エラーメッセージを赤色で出力するために、次の通り`termcolor`パッケージをインストールしてください。
+
+```sh
+poetry add --group dev termcolor
+```
+
+### 具象リポジトリと統合テストの実装
+
+リポジトリ(`drugstore/domain/repositories`)のsqlite3用の具象リポジトリと統合テストを実装してください。
+
+具象リポジトリと統合テストは、単体テストとほぼ同じ手順で実装します。
+
+1. 具象リポジトリを定義します。
+2. 具象リポジトリのメソッドを定義して、メソッド本体を`pass`にして、メソッドの実装を後回しにします。
+3. 具象リポジトリのメソッドを1つ取り上げて、そのメソッドを統合テストするテストケースをメソッドのdocstringにリストします。
+4. 取り上げた具象リポジトリのメソッドを実装します。
+5. 具象リポジトリのメソッドを実装しているときに、漏れているテストケースがあった場合、そのテストケースをメソッドのdocstringに追加します。
+6. 具象リポジトリのメソッドを実装したら、そのメソッドのテストケースを1つ取り上げて実装します。
+7. 実装したテストケースにパスすることを確認します。
+   実装したテストケースにパスしない場合は、パスするまでメソッドまたはテストケースを修正します。
+8. 実装したテストケースにパスしたら、docstringにリストしたテストケースを削除します。
+9. すべてのテストケースについて、6から7を繰り返します。
+10. すべてのメソッドについて、3から6を繰り返します。
+
+`ItemRepository`の具象リポジトリ`ItemRepositoryImpl`の実装と統合テストの実装例は、次に配置してあります。
+
+- `drugstore/infra/repositories/sqlite/items.py`
+- `tests/integrations/drugstore/infra/repositories/sqlite/test_items.py`
+
+統合テストは、次の通り実行します。
+
+```sh
+# すべての統合テストを実行
+poetry run python -m unittest discover -s tests/integrations
+# 指定したファイルの統合テストを実装
+poetry run python -m unittest tests/integrations/drugstore/infra/repositories/sqlite/test_items.py
+# すべての単体テストと統合テストを実装
+poetry run python -m unittest
+```
