@@ -147,6 +147,9 @@
     - [sqlite3の外部参照制約](#sqlite3の外部参照制約)
     - [`termcolor`パッケージのインストール](#termcolorパッケージのインストール)
     - [具象リポジトリと統合テストの実装](#具象リポジトリと統合テストの実装)
+  - [依存関係の注入 (Dependency Injection: DI)](#依存関係の注入-dependency-injection-di)
+    - [ドメイン](#ドメイン)
+    - [クリーンアーキテクチャ](#クリーンアーキテクチャ)
   - [網羅率の計測](#網羅率の計測)
     - [網羅率の計測方法](#網羅率の計測方法)
       - [網羅率の確認方法](#網羅率の確認方法)
@@ -1886,14 +1889,16 @@ class PatchDictTest(unittest.TestCase):
 
 ## 単体テストの実装演習
 
+ドラッグストアの商品の売上を管理するシステムを例に、プロダクションコードとテストを実装します。
+
+最終的なソースコードは<https://github.com/xjr1300/drugstore>にあります。
+
 ### Todo Tree拡張機能のインストール
 
 テストを実装する前にvscodeに`Todo Tree`拡張機能をインストールしてください。
 `Todo Tree`拡張機能は、プロジェクト内の`TODO`や`FIXME`コメントを検索して、サイドバーに表示します。
 
 ### テストの実装を連取するサンプルプロジェクトの説明
-
-ドラッグストアの商品の売上を管理するシステムを例に、テストを実装します。
 
 ドラッグストアのドメインルール（ビジネスルール）は次のとおりです。
 
@@ -2560,6 +2565,128 @@ poetry run python -m unittest discover -s tests/integrations
 poetry run python -m unittest tests/integrations/drugstore/infra/repositories/sqlite/test_items.py
 # すべての単体テストと統合テストを実装
 poetry run python -m unittest
+```
+
+## 依存関係の注入 (Dependency Injection: DI)
+
+### ドメイン
+
+ドメインは、ビジネスロジックや不変条件などのドメインルールを中心に設計されます。
+よって、ドメインは、インフラストラクチャ、フレームワーク、ユースケースなど他と独立させます。
+これにより、ドメインが技術的な実装や特定のフレームワークに影響されることなく、ビジネスロジックそのものに集中でき、テストの実装も容易にします。
+
+もし、ドメインが他に依存している場合、依存先の変更がドメインに影響を与えるようになります。
+例えば、ドメインがインフラストラクチャに依存している場合、デーストアをリレーショナルデータベースからインメモリデータベースに変更した場合、ドメインの実装を変更する必要があります。
+
+### クリーンアーキテクチャ
+
+特に複雑なシステムを設計する場合、次のようなシステム設計方法が考案されており、その設計方法は似ています。
+
+- `ヘキサゴナルアーキテクチャ` - 2005年にAlistair Cockburnによって提唱されました。
+- `オニオンアーキテクチャ` - 2012年にJeffrey Palermoによって提唱されました。
+- `クリーンアーキテクチャ` - 2012年にRobert C. Martin（アンクルボブ、ボブおじさん）によって提唱されました。
+
+クリーンアーキテクチャの図を次に示します。
+`Entities`と示されている部分がドメインに該当します。
+
+![クリーンアーキテクチャ](https://blog.cleancoder.com/uncle-bob/images/2012-08-13-the-clean-architecture/CleanArchitecture.jpg)
+
+上記図が示すことは、**内部の層は外部の層に依存しない**ということで、必ず**外部の層が内部の層に依存する**ようにします。
+
+通常、データベースを利用する処理の流れは、データを受け取り、データを処理して、その内容をデータベースに記録します。
+データを処理するドメインやユースケースは、その後にデータをデータベースに保存する必要があるため、普通に考えるとドメインはデータベースに依存するようになります。
+しかし、前述した理由で、ドメインはドメインルールを中心に設計されるため、データベースに依存することは避けなければなりません。
+
+よって、処理の流れとは逆に、インフラストラクチャがドメインに依存するように、`drugstore/domain/repositories`ディレクトリに、データストアのインターフェイスを抽象基本クラスとして定義しました。
+これで、データーベース処理に関する実装は`drugstore/infra/repositories/sqlite`ディレクトリに配置し、ドメインはデータベースに依存しないようにしました。
+
+そして、リポジトリのインターフェイスに`依存関係を注入`することで、実際にデータベースを処理できるようになります。
+
+`drugstore`の依存関係は次のとおりになっています。
+
+```text
+アプリケーション -> インフラ -> ユースケース -> ドメイン
+```
+
+顧客が商品を購入するユースケースを例に、 アプリケーション層を実装した例を次に示します。
+アプリケーション層では、依存を直接扱います。
+
+```python
+# drugstore/__main__.py
+def customer_buys_items(repo_manager: RepositoryManagerImpl):
+    """顧客が商品を購入する。
+
+    Args:
+        repo_manager (RepositoryManagerImpl): sqlite3のリポジトリマネージャー
+    """
+    # 顧客から会員カードを受け取り、バーコードを読み込むことで顧客IDを入手
+    customer_id = scan_membership_card()
+
+    # 売上する商品の商品IDと商品の数量を確認
+    sold_items = check_items_and_quantities_to_sale()
+
+    # 売上を計上するユースケースを実行
+    record_sales(repo_manager, customer_id, jst_now(), sold_items)
+
+
+if __name__ == "__main__":
+    # データベースに接続
+    conn = connect_to_database(DATABASE_FILE_NAME)
+
+    # sqlite3のリポジトリマネージャーを構築
+    repo_manager = RepositoryManagerImpl(conn)
+
+    # 顧客が商品を購入
+    customer_buys_items(repo_manager)
+```
+
+次にユースケース層に実装した、売上を計上するユースケースを実装した例を次に示します。
+ユースケース層の`record_sales`メソッドは、`RepositoryManager`型の抽象的なインターフェースを介してsqlite3のリポジトリマネージャーを扱います。
+ユースケース層で直接sqlite3の`RepositoryManagerImpl`を扱わないため、例えばデータストアをインメモリデータベースに変更した場合、ユースケース層の実装を変更する必要はありません。
+インフラストラクチャ層で、`RepositoryManager`やそれぞれのリポジトリのインターフェースに準拠したインメモリデータベース用のクラスを実装して、それらをアプリケーション層で扱うことで、データストアをインメモリデータベースに変更できます。
+
+```python
+def record_sales(
+    repo_manager: RepositoryManager,
+    customer_id: Optional[uuid.UUID],
+    sold_at: datetime,
+    sold_items: List[SoldItem],
+) -> None:
+    """売上を計上する。
+
+    Args:
+        repo_manager (RepositoryManager): リポジトリマネージャー
+        customer_id (Optional[uuid.UUID]): 顧客ID
+        sold_at: (datetime): 売上日時
+        sold_items (List[SoldItem]): 顧客が購入する商品を格納したリスト
+    """
+    # 顧客を取得
+    if customer_id is not None:
+        customer_repo = repo_manager.customer()
+        customer = customer_repo.by_id(customer_id)
+    else:
+        customer = None
+
+    # 消費税リストを取得
+    tax_repo = repo_manager.consumption_tax()
+    taxes = tax_repo.list()
+    # 消費税マネージャーを構築
+    tax_manager = ConsumptionTaxManager(taxes)
+    # 適用する消費税の税率を決定
+    tax_rate = tax_manager.consumption_tax_rate(sold_at)
+
+    # 商品リポジトリを取得
+    item_repo = repo_manager.item()
+
+    # 売上を構築
+    sale_id = uuid.uuid4()
+    sale = Sale(sale_id, customer, sold_at, tax_rate)
+    for sold_item in sold_items:
+        sale.add_sale_detail(create_sale_detail(item_repo, sale_id, sold_item))
+
+    # 打ち上げを計上
+    sale_repo = repo_manager.sale()
+    sale_repo.register(sale)
 ```
 
 ## 網羅率の計測
