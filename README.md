@@ -147,6 +147,10 @@
     - [sqlite3の外部参照制約](#sqlite3の外部参照制約)
     - [`termcolor`パッケージのインストール](#termcolorパッケージのインストール)
     - [具象リポジトリと統合テストの実装](#具象リポジトリと統合テストの実装)
+  - [網羅率の計測](#網羅率の計測)
+    - [網羅率の計測方法](#網羅率の計測方法)
+      - [網羅率の確認方法](#網羅率の確認方法)
+      - [網羅率レポートの出力方法](#網羅率レポートの出力方法)
 
 ## テストの種類
 
@@ -172,15 +176,19 @@
 さらに、それぞれの単体テストが他の単体テストから独立することで、他からの影響を受けず、個別に実行できるようになります。
 これにより、単体テストを**個別に実行**したり、同時に複数の単体テストを**並行／並列で実行**することができます。
 
+単体テストは、データベースや外部のメール送信サービスなどの`依存`を、その動作を模倣する`スタブ`や`モック`などの`テストダブル`に置き換えます。
+
 ### 統合テスト (Integration Test) の概要
 
 統合テストは、システム全体が意図したように機能することを検証するテストです。
 システムの`ユースケース`ごとに、統合テストを実装して、それぞれを単独または連続して実行します。
 
+統合テストは、データベースを直接使い、外部のメール送信サービスなどの依存をテストダブルに置き換えます。
+
 ### E2E (End to End Test) の概要
 
 E2Eテストは、統合テストの上位に位置するテストです。
-統合テストでは、システムが依存するメール送信サービスなどの外部サービスをテストダブルに置き換えますが、E2Eテストは、ほぼすべての依存を実際のサービスを使用してテストします。
+E2Eテストは、ほぼすべての依存を実際のサービスを使用してテストします。
 
 E2Eテストは、本書の説明対象外とします。
 
@@ -364,7 +372,7 @@ class TestIsStringLong(unittest.TestCase):
 - プロダクションコードの実装方法によってコード網羅率が変わる
 - 分岐網羅率を増やすために、確認不在のテストが実装される
 
-基本的に網羅率を高く維持されていれば、**テストされている**とみなせます。
+基本的に網羅率を高く維持されていれば、確認不在のテストが存在しない限り、**よくテストされている**とみなせます。
 しかし、網羅率を例えば85%以上に維持するなど、数値目標を設定することは、開発者に**人工的な目標**を設定することになり、テストスイートの品質を向上させることに繋がりません。
 
 ## 品質の良いテストスイートの条件
@@ -2553,3 +2561,88 @@ poetry run python -m unittest tests/integrations/drugstore/infra/repositories/sq
 # すべての単体テストと統合テストを実装
 poetry run python -m unittest
 ```
+
+## 網羅率の計測
+
+### 網羅率の計測方法
+
+網羅率を計測するために、`coverage`パッケージをインストールします。
+
+```sh
+poetry add --group dev coverage
+```
+
+テストを実行して、網羅率を計測します。
+`coverage`マンドを実行すると、網羅率が`.coverage`ファイルに保存されます。
+
+```sh
+poetry run coverage run -m unittest
+```
+
+#### 網羅率の確認方法
+
+次の通り、標準出力にファイルパス(`Name`)と、そのファイルの実行文数(`Stmts`)、未実行行数(`Miss`)、網羅率(`Cover`)が表示されます。
+なお、`.coverage`ファイルは、バイナリファイルであるため、ファイルを開いて網羅率を確認できません。
+
+```sh
+% poetry run coverage report
+Name                                                            Stmts   Miss  Cover
+-----------------------------------------------------------------------------------
+drugstore/__init__.py                                               0      0   100%
+drugstore/common/__init__.py                                        7      0   100%
+drugstore/domain/__init__.py                                        0      0   100%
+drugstore/domain/models/__init__.py                                 0      0   100%
+drugstore/domain/models/consumption_taxes.py                       39      2    95%
+drugstore/domain/models/customers.py                               19      1    95%
+drugstore/domain/models/items.py                                   21      1    95%
+drugstore/domain/models/membership_types.py                        40      5    88%
+drugstore/domain/models/sales.py                                  101      9    91%
+...
+```
+
+実行していない行の番号を表示するためには、`--show-missing(-m)`オプションを指定します。
+
+```sh
+% poetry run coverage report -m
+Name                                                            Stmts   Miss  Cover   Missing
+---------------------------------------------------------------------------------------------
+drugstore/__init__.py                                               0      0   100%
+drugstore/common/__init__.py                                        7      0   100%
+drugstore/domain/__init__.py                                        0      0   100%
+drugstore/domain/models/__init__.py                                 0      0   100%
+drugstore/domain/models/consumption_taxes.py                       39      2    95%   55, 57
+drugstore/domain/models/customers.py                               19      1    95%   52
+drugstore/domain/models/items.py                                   21      1    95%   50
+drugstore/domain/models/membership_types.py                        40      5    88%   34, 72, 84, 97, 110
+drugstore/domain/models/sales.py                                  101      9    91%   47, 51, 55, 126-128, 131, 156-157
+...
+```
+
+また、コードが実装されていないファイルを無視するためには、`--skip-covered`オプションを指定します。
+
+```sh
+% poetry run coverage report --skip-covered
+Name                                                            Stmts   Miss  Cover
+-----------------------------------------------------------------------------------
+drugstore/domain/models/consumption_taxes.py                       39      2    95%
+drugstore/domain/models/customers.py                               19      1    95%
+drugstore/domain/models/items.py                                   21      1    95%
+drugstore/domain/models/membership_types.py                        40      5    88%
+drugstore/domain/models/sales.py                                  101      9    91%
+...
+```
+
+#### 網羅率レポートの出力方法
+
+次を実行するとHTML形式の網羅率レポートが`htmlcov`ディレクトリに出力されます。
+
+```sh
+poetry run coverage html
+```
+
+`htmlcov/index.html`ファイルをWebブラウザで開いて、網羅率を確認します。
+
+`htmlcov/index.html`ファイルを開くと、`coverage`の`report`コマンドを実行したときと同様な情報が表示されます。
+ファイルパスに貼られているリンクをクリックすると、そのファイルの内容を表示されて、また実行されなかった行が明示されます。
+
+![網羅率リポート](./images/coverage-html-report.png)
