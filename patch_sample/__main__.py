@@ -12,7 +12,7 @@ class PatchTest(unittest.TestCase):
             mock.return_value = "foo/bar/spam.txt"
             # モックされたos.path.join関数の実行
             path1 = os.path.join("1", "2", "grok.txt")
-            # モックが返した値を県s表
+            # モックが返した値を検証
             self.assertEqual("foo/bar/spam.txt", path1)
         # モックが解除されている
         path2 = os.path.join("1", "2", "grok.txt")
@@ -24,20 +24,23 @@ class PatchTest(unittest.TestCase):
         mock.return_value = "foo/bar/spam.txt"
         # モックされたos.path.join関数の実行
         path1 = os.path.join("1", "2", "grok.txt")
-        # モックが返した値を県s表
+        # モックが返した値を検証
         self.assertEqual("foo/bar/spam.txt", path1)
+        # 関数終了後、モックが解除
 
     @patch("os.path.join", return_value="a", custom_attribute="hello")
     def test_patch_decorator2(self, mock: MagicMock) -> None:
         """patchデコレーターの引数にモックが受け取るキーワード引数とモックの属性を指定"""
         self.assertEqual("a", os.path.join(""))
         self.assertEqual("hello", mock.custom_attribute)
+        # 関数終了後、モックが解除
 
     @patch("os.path.join", side_effect=["a", "b"])
     def test_patch_decorator3(self, _: MagicMock) -> None:
         """モックを呼び出すたびに異なる値を返すようにpatchデコレーターの引数を設定"""
         self.assertEqual("a", os.path.join(""))
         self.assertEqual("b", os.path.join(""))
+        # 関数終了後、モックが解除
 
 
 class Foo:
