@@ -38,7 +38,7 @@ class UserService:
         # が変更された場合は、メッセージバスで外部システムにユーザーのEメールアドレスが
         # 変更されたことを通知
         events = filter(is_email_changed_event, user.events)
-        if events.__next__():
+        if next(events):
             MessageBus.send_email_changed_message(id, new_email)
 
 

@@ -33,13 +33,15 @@ class PointTest(unittest.TestCase):
 
     def test_x(self) -> None:
         """Xプロパティのテスト"""
-        p = Point(3, 4)
-        self.assertEqual(3, p.x)
+        sut = Point(3, 4)
+
+        self.assertEqual(3, sut.x)
 
     def test_y(self) -> None:
         """Yプロパティのテスト"""
-        p = Point(3, 4)
-        self.assertEqual(4, p.y)
+        sut = Point(3, 4)
+
+        self.assertEqual(4, sut.y)
 
 
 if __name__ == "__main__":
