@@ -2440,7 +2440,7 @@ from drugstore.domain.repositories import RepositoryManager
 from drugstore.utils.consumption_tax_manager import ConsumptionTaxManager
 
 
-def retrieve_applicable_consumption_tax_rage(
+def retrieve_applicable_consumption_tax_rate(
     repo_manager: RepositoryManager, dt: datetime
 ) -> Decimal:
     """売上に適用する消費税の税率を返す。
